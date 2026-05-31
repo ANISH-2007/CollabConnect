@@ -1,40 +1,91 @@
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import pool from './src/config/database.js';
 import { createUsersTable } from './src/models/User.js';
 import authRoutes from './src/routes/authRoutes.js';
 import profileRoutes from './src/routes/profileRoutes.js';
+import swipeRoutes from './src/routes/swipeRoutes.js';
+import chatRoutes from './src/routes/chatRoutes.js';
+
 dotenv.config();
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
 const PORT = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
 
-// Test database connection
-/// Test database connection (MySQL compatible)
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const [result] = await pool.execute('SELECT NOW() as time');
-    res.json({ message: 'Database connected!', time: result[0].time });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Auth routes
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/swipe', swipeRoutes);
+app.use('/api', chatRoutes);
 
-// Test routes
-app.get('/', (req, res) => {
-  res.json({ message: "CollabConnect Backend is Running!" });
-});
-
+// Test route
 app.get('/api/test', (req, res) => {
   res.json({ message: "API is working!" });
+});
+
+// Socket.io connection for real-time chat
+io.on('connection', (socket) => {
+  console.log('🟢 New client connected:', socket.id);
+  
+  // User joins their room
+  socket.on('join', (userId) => {
+    socket.join(`user_${userId}`);
+    console.log(`✅ User ${userId} joined room user_${userId}`);
+  });
+  
+  // Handle sending message
+  socket.on('send_message', async (data) => {
+    console.log('📨 Message received:', data);
+    const { matchId, senderId, receiverId, message } = data;
+    
+    try {
+      // Save message to database
+      const query = `
+        INSERT INTO messages (match_id, sender_id, message)
+        VALUES (?, ?, ?)
+      `;
+      const [result] = await pool.execute(query, [matchId, senderId, message]);
+      
+      const newMessage = {
+        id: result.insertId,
+        match_id: matchId,
+        sender_id: senderId,
+        message: message,
+        created_at: new Date()
+      };
+      
+      // Emit to receiver's room
+      io.to(`user_${receiverId}`).emit('receive_message', newMessage);
+      console.log(`📤 Message sent to user_${receiverId}`);
+      
+      // Also emit back to sender for confirmation
+      socket.emit('message_sent', { success: true, message: newMessage });
+      
+    } catch (error) {
+      console.error('Error saving message:', error);
+      socket.emit('message_error', { error: error.message });
+    }
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('🔴 Client disconnected:', socket.id);
+  });
 });
 
 // Initialize database and start server
@@ -43,8 +94,9 @@ const startServer = async () => {
     await createUsersTable();
     console.log('✅ Database initialized');
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`✅ Socket.io ready for real-time chat`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
