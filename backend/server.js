@@ -10,6 +10,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import profileRoutes from './src/routes/profileRoutes.js';
 import swipeRoutes from './src/routes/swipeRoutes.js';
 import chatRoutes from './src/routes/chatRoutes.js';
+import instagramRoutes from './src/routes/instagramRoutes.js';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/swipe', swipeRoutes);
 app.use('/api', chatRoutes);
+app.use('/api/instagram', instagramRoutes);
 
 // Test route
 app.get('/api/test', (req, res) => {

@@ -1,11 +1,17 @@
 
 import { useState, useEffect } from 'react';
+import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import { FaHeart, FaTimes, FaUsers, FaTag, FaInfoCircle } from 'react-icons/fa';
 
 function SwipePage() {
   const [creators, setCreators] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [showMatch, setShowMatch] = useState(null);
+  
+  // HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 0, 200], [-25, 0, 25]);
+  const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
 
   useEffect(() => {
     fetchCreators();
@@ -18,7 +24,6 @@ function SwipePage() {
     });
     const data = await response.json();
     setCreators(data);
-    setLoading(false);
   };
 
   const handleSwipe = async (swipeType) => {
@@ -33,32 +38,31 @@ function SwipePage() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({
-        swipedId: currentCreator.id,
-        swipeType: swipeType
-      })
+      body: JSON.stringify({ swipedId: currentCreator.id, swipeType: swipeType })
     });
     
     const result = await response.json();
     
     if (result.isMatch) {
-      setMessage(`🎉 It's a match with ${currentCreator.name}! 🎉`);
-      setTimeout(() => setMessage(''), 3000);
+      setShowMatch(currentCreator);
+      setTimeout(() => setShowMatch(null), 4000);
     }
     
     setCurrentIndex(currentIndex + 1);
   };
 
-  if (loading) return <div style={{ textAlign: 'center', marginTop: '100px' }}>Loading creators...</div>;
-  
-  if (currentIndex >= creators.length) {
+  // CONDITIONAL RETURNS GO AFTER ALL HOOKS
+  if (creators.length === 0 || currentIndex >= creators.length) {
     return (
-      <div style={{ textAlign: 'center', marginTop: '100px' }}>
-        <h2>No more creators to show!</h2>
-        <p>Check back later for new creators.</p>
-        <button onClick={() => { setCurrentIndex(0); fetchCreators(); }} style={{ padding: '10px 20px' }}>
-          Refresh
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 70px)' }}>
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 80, marginBottom: 20 }}>🎯</div>
+          <h2>No more creators!</h2>
+          <p>Check back later for new creators</p>
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setCurrentIndex(0); fetchCreators(); }} style={{ marginTop: 20, padding: '12px 30px', background: 'white', border: 'none', borderRadius: 30, cursor: 'pointer', fontWeight: 'bold', color: '#667eea' }}>
+            Refresh
+          </motion.button>
+        </motion.div>
       </div>
     );
   }
@@ -66,45 +70,159 @@ function SwipePage() {
   const currentCreator = creators[currentIndex];
 
   return (
-    <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px' }}>
-      {message && (
-        <div style={{ background: '#4CAF50', color: 'white', padding: '10px', borderRadius: '5px', marginBottom: '20px', textAlign: 'center' }}>
-          {message}
+    <div style={{ position: 'relative', minHeight: 'calc(100vh - 70px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      {/* Match Popup */}
+      <AnimatePresence>
+        {showMatch && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              padding: '40px',
+              borderRadius: 30,
+              textAlign: 'center',
+              zIndex: 1000,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              color: 'white'
+            }}
+          >
+            <div style={{ fontSize: 80, marginBottom: 20 }}>🎉</div>
+            <h2>It's a Match!</h2>
+            <p>You and {showMatch.name} liked each other</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Swipe Card */}
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        style={{ x, rotate, opacity, width: '100%', maxWidth: 450 }}
+        onDragEnd={(e, { offset }) => {
+          if (offset.x > 100) handleSwipe('like');
+          else if (offset.x < -100) handleSwipe('pass');
+        }}
+        whileTap={{ cursor: 'grabbing' }}
+      >
+        <div style={{
+          background: 'white',
+          borderRadius: 30,
+          overflow: 'hidden',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.3)',
+          cursor: 'grab'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding: '40px',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: 100,
+              height: 100,
+              background: 'white',
+              borderRadius: 50,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto',
+              fontSize: 50
+            }}>👤</div>
+            <h2 style={{ color: 'white', marginTop: 20, fontSize: 28 }}>{currentCreator.name}</h2>
+          </div>
+          
+          <div style={{ padding: 30 }}>
+            <div style={{ marginBottom: 20, padding: 15, background: '#f8f9fa', borderRadius: 15, display: 'flex', alignItems: 'center', gap: 15 }}>
+              <FaTag color="#667eea" size={24} />
+              <div>
+                <div style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>Niche</div>
+                <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{currentCreator.niche || 'Not set'}</div>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: 20, padding: 15, background: '#f8f9fa', borderRadius: 15, display: 'flex', alignItems: 'center', gap: 15 }}>
+              <FaUsers color="#667eea" size={24} />
+              <div>
+                <div style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>Followers</div>
+                <div style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{currentCreator.follower_range || 'Not set'}</div>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: 20, padding: 15, background: '#f8f9fa', borderRadius: 15, display: 'flex', alignItems: 'center', gap: 15 }}>
+              <FaInfoCircle color="#667eea" size={24} />
+              <div>
+                <div style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>Bio</div>
+                <div style={{ fontSize: 14, color: '#333' }}>{currentCreator.bio || 'No bio yet'}</div>
+              </div>
+            </div>
+            
+            {currentCreator.instagram_handle && (
+              <div style={{ marginBottom: 20, padding: 15, background: '#f8f9fa', borderRadius: 15, display: 'flex', alignItems: 'center', gap: 15 }}>
+                <span style={{ fontSize: 24 }}>📸</span>
+                <div>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>Instagram</div>
+                  <a 
+                    href={`https://instagram.com/${currentCreator.instagram_handle.replace('@', '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 16, fontWeight: 'bold', color: '#E4405F', textDecoration: 'none' }}
+                  >
+                    {currentCreator.instagram_handle}
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </motion.div>
       
-      <div style={{ 
-        border: '1px solid #ddd', 
-        borderRadius: '10px', 
-        padding: '30px', 
-        textAlign: 'center',
-        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-        background: 'white'
-      }}>
-        <h2>{currentCreator.name}</h2>
-        <p><strong>Niche:</strong> {currentCreator.niche || 'Not set'}</p>
-        <p><strong>Followers:</strong> {currentCreator.follower_range || 'Not set'}</p>
-        <p><strong>Bio:</strong> {currentCreator.bio || 'No bio yet'}</p>
-      </div>
-      
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px' }}>
-        <button 
+      {/* Action Buttons */}
+      <div style={{ position: 'fixed', bottom: 30, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 30 }}>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => handleSwipe('pass')}
-          style={{ padding: '15px 30px', fontSize: '18px', background: '#f44336', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          style={{
+            width: 70,
+            height: 70,
+            borderRadius: 35,
+            background: 'white',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
-          👎 Pass
-        </button>
-        <button 
+          <FaTimes size={30} color="#ff4757" />
+        </motion.button>
+        
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => handleSwipe('like')}
-          style={{ padding: '15px 30px', fontSize: '18px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          style={{
+            width: 70,
+            height: 70,
+            borderRadius: 35,
+            background: 'white',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
-          👍 Like
-        </button>
+          <FaHeart size={30} color="#4CAF50" />
+        </motion.button>
       </div>
-      
-      <p style={{ textAlign: 'center', marginTop: '20px' }}>
-        {currentIndex + 1} / {creators.length}
-      </p>
     </div>
   );
 }

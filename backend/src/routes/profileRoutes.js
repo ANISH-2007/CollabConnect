@@ -1,3 +1,4 @@
+
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
@@ -18,17 +19,27 @@ const verifyToken = (req, res, next) => {
 
 router.put('/update', verifyToken, async (req, res) => {
   try {
-    const { niche, followerRange, bio } = req.body;
-    await pool.execute('UPDATE users SET niche = ?, follower_range = ?, bio = ? WHERE id = ?', [niche, followerRange, bio, req.userId]);
+    const { niche, followerRange, bio, instagramHandle } = req.body;
+    const userId = req.userId;
+
+    const query = `
+      UPDATE users 
+      SET niche = ?, follower_range = ?, bio = ?, instagram_handle = ?
+      WHERE id = ?
+    `;
+    await pool.execute(query, [niche, followerRange, bio, instagramHandle || null, userId]);
+
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
 
 router.get('/me', verifyToken, async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT id, name, email, niche, follower_range, bio FROM users WHERE id = ?', [req.userId]);
+    const query = 'SELECT id, name, email, niche, follower_range, bio, instagram_handle FROM users WHERE id = ?';
+    const [rows] = await pool.execute(query, [req.userId]);
     res.json(rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
